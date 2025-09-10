@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>원 클릭 게임</title>
+    <style>
+        /* 전체 바디 설정 */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #b2b2b2; /* 어두운 배경 */
+    color: #f2f2f2; /* 밝은 텍스트 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    text-align: center;
+    flex-direction: column;
+}
+
+/* 점수와 시간 영역 */
+#score, #time {
+    font-size: 24px;
+    font-weight: 600;
+    background-color: #565656; /* 약간 투명한 배경 */
+    color: #fff;
+    border-radius: 8px;
+    padding: 12px 20px;
+    margin-bottom: 5px;
+    display: inline-block;
+    width: 200px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5); /* 그림자 효과 */
+}
+
+/* 게임 오버 메시지 */
+#game-over {
+    font-size: 32px;
+    color: #e74c3c; /* 붉은 색으로 강조 */
+    font-weight: 700;
+    display: none;
+    margin-top: 20px;
+}
+
+/* 캔버스 스타일 */
+#gameCanvas {
+    background-color: #cccccc; /* 캔버스 배경 어두운 색 */
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7); /* 입체적인 그림자 */
+    border: 3px solid #444;
+}
+
+/* 게임 초기화 버튼 */
+#resetButton {
+    background-color: #2980b9; /* 파란색 버튼 */
+    color: #fff;
+    border: none;
+    padding: 15px 30px;
+    font-size: 20px;
+    font-weight: bold;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 5px;
+    transition: transform 0.2s ease, background-color 0.3s ease;
+}
+
+#resetButton:hover {
+    background-color: #3498db; /* 호버 시 색상 변경 */
+    transform: scale(1.05); /* 버튼 확대 효과 */
+}
+
+/* 버튼과 캔버스 간격 */
+button + canvas {
+    margin-top: 10px;
+}
+
+/* 작은 화면에 대한 반응형 디자인 */
+@media (max-width: 768px) {
+    #score, #time {
+        width: 100%;
+        font-size: 18px;
+    }
+
+    #gameCanvas {
+        width: 100%;
+        height: 300px;
+    }
+
+    #resetButton {
+        width: 100%;
+        padding: 12px;
+    }
+}
+
+    </style>
+</head>
+<body>
+
+    <div>
+      <div id="score">점수: 0</div>
+      <div id="time">남은 시간: 30초</div>
+      <div id="game-over"></div>
+      <canvas id="gameCanvas" width="1200" height="500"></canvas><br>
+      <button id="resetButton">게임 초기화</button>
+    </div>
+
+    <script>
+        // 변수 선언
+        let score = 0;
+        let timeRemaining = 30;
+        let gameInterval;
+        let gameOver = false;
+        let timerRunning = false;  // 타이머가 시작되었는지 여부 확인
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameOverElement = document.getElementById('game-over');
+
+        // 원 배열 (현재 존재하는 원들)
+        let circles = [];
+        let circlesToAdd = 2;  // 첫 번째 클릭 후 2개의 원을 추가
+
+        // 원 클릭 시 새로운 원을 생성하는 함수 (중앙에 첫 번째 원을, 이후 원은 랜덤 위치에 생성)
+        function createRandomCircle(isFirstCircle = false) {
+            const radius = 30;
+
+            let x, y;
+
+            if (isFirstCircle) {
+                // 첫 번째 원은 캔버스 중앙에 배치 (정수 좌표로 강제)
+                x = Math.round(canvas.width / 2);
+                y = Math.round(canvas.height / 2);
+            } else {
+                // 이후 원들은 랜덤 위치에 배치 (정수 좌표로 강제)
+                x = Math.round(Math.random() * (canvas.width - radius * 2) + radius);
+                y = Math.round(Math.random() * (canvas.height - radius * 2) + radius);
+            }
+
+            return { x, y, radius };
+        }
+
+        // 점수와 시간 업데이트 함수
+        function updateScore() {
+            document.getElementById('score').textContent = `점수: ${score}`;
+        }
+
+        function updateTime() {
+            document.getElementById('time').textContent = `남은 시간: ${timeRemaining}초`;
+        }
+
+        // 게임 시작 함수
+        function startGame() {
+            score = 0;
+            timeRemaining = 30;
+            gameOver = false;
+            timerRunning = false;
+
+            circles = [createRandomCircle(true)];  // 게임 시작 시 하나의 원을 캔버스 중앙에 생성
+            circlesToAdd = 1;  // 첫 번째 클릭 후 2개의 원을 추가
+
+            updateScore();
+            updateTime();
+            drawCircles();  // 원 그리기
+
+            // 1초마다 남은 시간 감소
+            gameInterval = setInterval(function () {
+                if (timeRemaining > 0 && !gameOver && timerRunning) {
+                    timeRemaining--;
+                    updateTime();
+                } else if (timeRemaining === 0) {
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        // 게임 종료 함수
+        function endGame() {
+            clearInterval(gameInterval);
+            gameOver = true;
+            gameOverElement.style.display = 'block';
+            gameOverElement.textContent = `게임 오버! 점수: ${score}`;
+        }
+
+        // 원을 그리는 함수
+        function drawCircles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);  // 캔버스 초기화
+
+            circles.forEach(circle => {
+                ctx.beginPath();
+                ctx.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2);  // 원 그리기
+                ctx.fillStyle = 'blue';  // 원 색상
+                ctx.fill();
+                ctx.stroke();
+            });
+        }
+
+        // 원을 클릭했는지 확인하는 함수
+        function isCircleClicked(x, y, circle) {
+            const dist = Math.sqrt((x - circle.x) ** 2 + (y - circle.y) ** 2);
+            return dist <= circle.radius;
+        }
+
+        // 화면 배경을 잠시 빨간색으로 변환하는 함수
+        function flashRedBackground() {
+            canvas.style.transition = 'background-color 0.2s ease';  // 색상이 서서히 변하는 효과
+            canvas.style.backgroundColor = 'rgba(255, 0, 0, 0.3)';  // 연한 빨간색 배경
+
+            // 잠시 후 원래 배경으로 되돌림
+            setTimeout(() => {
+                canvas.style.backgroundColor = '';  // 배경색 초기화
+            }, 200);  // 0.2초 동안 빨간색 배경 유지
+        }
+
+        // 캔버스 클릭 이벤트 처리
+        canvas.addEventListener('click', function (e) {
+            if (gameOver) return;  // 게임이 종료되면 클릭 무시
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            let circleClicked = false;
+
+            // 클릭한 위치가 원 내부인지 확인
+            for (let i = 0; i < circles.length; i++) {
+                if (isCircleClicked(x, y, circles[i])) {
+                    score++;  // 클릭 시 점수 증가
+                    updateScore();
+
+                    // 원이 클릭되면 그 원을 삭제하고 새로운 원을 추가
+                    circles.splice(i, 1);  // 클릭된 원 제거
+                    drawCircles();
+
+                    // 첫 번째 클릭 후 타이머 시작
+                    if (!timerRunning) {
+                        timerRunning = true;
+                    }
+
+                    // 캔버스에 원이 없을 때만 새로운 원을 추가
+                    if (circles.length === 0) {
+                        // 원을 클릭할 때마다 circlesToAdd를 1 증가
+                        circlesToAdd = Math.min(circlesToAdd + 1, 10);  // 최대 10개까지 증가
+
+                        // circlesToAdd만큼 원을 새로 추가
+                        for (let j = 0; j < circlesToAdd; j++) {
+                            circles.push(createRandomCircle());  // 랜덤 위치에 원 생성
+                        }
+                        drawCircles();  // 원들 다시 그리기
+                    }
+
+                    circleClicked = true;  // 원을 클릭했음을 표시
+                    break;  // 한 번의 클릭으로 하나의 원만 처리되도록
+                }
+            }
+
+            // 원을 클릭하지 않은 경우 점수 1점 감소
+            if (!circleClicked) {
+                score = Math.max(0, score - 1);  // 점수는 0 이하로 내려가지 않도록 처리
+                updateScore();
+
+                // 배경을 빨간색으로 잠깐 변경
+                flashRedBackground();
+            }
+        });
+
+        // 게임 초기화 함수
+        function resetGame() {
+            // 점수, 시간, 상태 초기화
+            score = 0;
+            timeRemaining = 30;
+            gameOver = false;
+            timerRunning = false;
+
+            // 원 배열 초기화
+            circles = [createRandomCircle(true)];  // 게임 시작 시 하나의 원을 캔버스 중앙에 생성
+            circlesToAdd = 1;  // 첫 번째 클릭 후 2개의 원을 추가
+
+            // UI 업데이트
+            updateScore();
+            updateTime();
+            gameOverElement.style.display = 'none';  // 게임 오버 메시지 숨김
+
+            // 캔버스 초기화
+            ctx.clearRect(0, 0, canvas.width, canvas.height);  // 캔버스 초기화
+            drawCircles();  // 원 그리기
+
+            // 게임 타이머 설정
+            if (gameInterval) {
+                clearInterval(gameInterval);  // 기존의 타이머가 있으면 중지
+            }
+
+            // 타이머 시작
+            gameInterval = setInterval(function () {
+                if (timeRemaining > 0 && !gameOver && timerRunning) {
+                    timeRemaining--;
+                    updateTime();
+                } else if (timeRemaining === 0) {
+                    endGame();  // 시간이 0이 되면 게임 종료
+                }
+            }, 1000);
+        }
+
+        // 게임 시작
+        startGame();
+        document.getElementById('resetButton').addEventListener('click', resetGame);
+
+        // 초기화 버튼
+</script>
+
+</body>
+</html>

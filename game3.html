@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Undyne Shield Defense</title>
+    <style>
+        /* 기본 스타일 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* 배경 설정 */
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f0f0f0;
+    color: #333;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    text-align: center;
+}
+
+/* 제목 스타일 */
+h1 {
+    font-size: 36px;
+    margin-bottom: 10px;
+    color: #2c3e50;
+}
+
+/* 설명 텍스트 스타일 */
+p {
+    font-size: 18px;
+    margin-bottom: 20px;
+    color: #7f8c8d;
+}
+
+/* 캔버스 스타일 */
+#gameCanvas {
+    border: 2px solid #2c3e50;
+    background-color: #ecf0f1;
+}
+
+/* 점수 스타일 */
+#score {
+    font-size: 24px;
+    font-weight: bold;
+    margin-top: 20px;
+    color: #e74c3c;
+}
+
+/* 체력바 스타일 */
+#healthBarContainer {
+    width: 400px;
+    height: 30px;
+    background-color: #e74c3c;
+    margin-top: 20px;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+#healthBar {
+    height: 100%;
+    width: 100%; /* 체력 100%로 시작 */
+    background-color: #2ecc71;
+}
+
+    </style>
+</head>
+<body>
+    <h1>막는 게임</h1>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <p id="score">Score: 0</p>
+
+    <!-- 체력바 추가 -->
+    <div id="healthBarContainer">
+        <div id="healthBar"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+const WIDTH = canvas.width;
+const HEIGHT = canvas.height;
+
+let shieldDirection = "UP"; // 방패 방향: "UP", "DOWN", "LEFT", "RIGHT"
+let score = 0;
+let hp = 3; // 초기 체력 설정
+let hitCount = 0; // 플레이어 맞은 횟수
+
+const arrows = [];
+const shieldDistance = 50; // 방패와 플레이어 간 거리
+const shieldWidth = 100; // 방패의 길이
+const shieldHeight = 20; // 방패의 두께
+const spawnInterval = 400; // 화살 생성 간격 (밀리초)
+let lastSpawnTime = 0;
+
+// 화살 생성
+function createArrow() {
+    const directions = ["UP", "DOWN", "LEFT", "RIGHT"];
+    const randomDirection = directions[Math.floor(Math.random() * directions.length)];
+    arrows.push({
+        direction: randomDirection,
+        distance: 800,
+        speed: 3,
+    });
+}
+
+// 플레이어 및 방패 그리기
+function drawPlayerAndShield() {
+    const x = WIDTH / 2;
+    const y = HEIGHT / 2;
+
+    // 플레이어 그리기 (빨간색 원)
+    ctx.beginPath();
+    ctx.arc(x, y, 20, 0, Math.PI * 2);
+    ctx.fillStyle = "red";
+    ctx.fill();
+
+    // 방패 그리기 (방패 방향에 맞게 그리기)
+    ctx.fillStyle = "blue";
+    if (shieldDirection === "UP") {
+        ctx.fillRect(x - shieldWidth / 2, y - shieldDistance - shieldHeight / 2, shieldWidth, shieldHeight);
+    } else if (shieldDirection === "DOWN") {
+        ctx.fillRect(x - shieldWidth / 2, y + shieldDistance - shieldHeight / 2, shieldWidth, shieldHeight);
+    } else if (shieldDirection === "LEFT") {
+        ctx.fillRect(x - shieldDistance - shieldHeight / 2, y - shieldWidth / 2, shieldHeight, shieldWidth);
+    } else if (shieldDirection === "RIGHT") {
+        ctx.fillRect(x + shieldDistance - shieldHeight / 2, y - shieldWidth / 2, shieldHeight, shieldWidth);
+    }
+}
+
+// 화살 그리기
+function drawArrow(arrow) {
+    const x = WIDTH / 2;
+    const y = HEIGHT / 2;
+
+    let arrowX, arrowY;
+    if (arrow.direction === "UP") {
+        arrowX = x;
+        arrowY = y - arrow.distance;
+    } else if (arrow.direction === "DOWN") {
+        arrowX = x;
+        arrowY = y + arrow.distance;
+    } else if (arrow.direction === "LEFT") {
+        arrowX = x - arrow.distance;
+        arrowY = y;
+    } else if (arrow.direction === "RIGHT") {
+        arrowX = x + arrow.distance;
+        arrowY = y;
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(arrowX, arrowY);
+    if (arrow.direction === "UP" || arrow.direction === "DOWN") {
+        ctx.lineTo(arrowX - 10, arrowY + (arrow.direction === "UP" ? -20 : 20));
+        ctx.lineTo(arrowX + 10, arrowY + (arrow.direction === "UP" ? -20 : 20));
+    } else if (arrow.direction === "LEFT" || arrow.direction === "RIGHT") {
+        ctx.lineTo(arrowX + (arrow.direction === "LEFT" ? -20 : 20), arrowY - 10);
+        ctx.lineTo(arrowX + (arrow.direction === "LEFT" ? -20 : 20), arrowY + 10);
+    }
+    ctx.closePath();
+    ctx.fillStyle = "green";
+    ctx.fill();
+}
+
+// 방패와 화살의 충돌 판정
+function checkShieldCollision(arrow) {
+    const x = WIDTH / 2;
+    const y = HEIGHT / 2;
+
+    let arrowX, arrowY;
+    if (arrow.direction === "UP") {
+        arrowX = x;
+        arrowY = y - arrow.distance;
+    } else if (arrow.direction === "DOWN") {
+        arrowX = x;
+        arrowY = y + arrow.distance;
+    } else if (arrow.direction === "LEFT") {
+        arrowX = x - arrow.distance;
+        arrowY = y;
+    } else if (arrow.direction === "RIGHT") {
+        arrowX = x + arrow.distance;
+        arrowY = y;
+    }
+
+    // 방패와 화살의 충돌을 확인
+    if (shieldDirection === "UP" && arrowY < y && Math.abs(arrowX - x) <= shieldWidth / 2 && Math.abs(arrowY - (y - shieldDistance)) <= shieldHeight / 2) {
+        return true;
+    } else if (shieldDirection === "DOWN" && arrowY > y && Math.abs(arrowX - x) <= shieldWidth / 2 && Math.abs(arrowY - (y + shieldDistance)) <= shieldHeight / 2) {
+        return true;
+    } else if (shieldDirection === "LEFT" && arrowX < x && Math.abs(arrowY - y) <= shieldWidth / 2 && Math.abs(arrowX - (x - shieldDistance)) <= shieldHeight / 2) {
+        return true;
+    } else if (shieldDirection === "RIGHT" && arrowX > x && Math.abs(arrowY - y) <= shieldWidth / 2 && Math.abs(arrowX - (x + shieldDistance)) <= shieldHeight / 2) {
+        return true;
+    }
+    return false;
+}
+
+// 플레이어와 화살의 충돌 판정
+function checkPlayerCollision(arrow) {
+    const x = WIDTH / 2;
+    const y = HEIGHT / 2;
+
+    let arrowX, arrowY;
+    if (arrow.direction === "UP") {
+        arrowX = x;
+        arrowY = y - arrow.distance;
+    } else if (arrow.direction === "DOWN") {
+        arrowX = x;
+        arrowY = y + arrow.distance;
+    } else if (arrow.direction === "LEFT") {
+        arrowX = x - arrow.distance;
+        arrowY = y;
+    } else if (arrow.direction === "RIGHT") {
+        arrowX = x + arrow.distance;
+        arrowY = y;
+    }
+
+    // 화살이 플레이어의 원과 충돌하는지 확인 (플레이어는 중심에 빨간 원, 반지름 20)
+    const distance = Math.sqrt(Math.pow(arrowX - x, 2) + Math.pow(arrowY - y, 2));
+    return distance <= 20; // 반지름 20인 플레이어의 원과 비교
+}
+
+// 체력 바 그리기
+function drawHealthBar() {
+    const barWidth = 400;
+    const barHeight = 20;
+    const x = (WIDTH - barWidth) / 2;
+    const y = HEIGHT - 30;
+
+    // 배경 (회색)
+    ctx.fillStyle = "#d3d3d3";
+    ctx.fillRect(x, y, barWidth, barHeight);
+
+    // 체력 (초록색)
+    ctx.fillStyle = "green";
+    ctx.fillRect(x, y, (barWidth * hp) / 3, barHeight);
+}
+
+// 게임 종료 화면
+function gameOver() {
+    ctx.fillStyle = "black";
+    ctx.font = "30px Arial";
+    ctx.fillText(`Game Over! Final Score: ${score}`, WIDTH / 2 - 150, HEIGHT / 2);
+}
+
+// 체력 감소
+function decreaseHealth() {
+    hp -= 1;
+    if (hp < 0) hp = 0;
+    hitCount += 1; // 히트 횟수 증가
+}
+
+// 화살 맞을 때 체력 차감
+function handleArrowHit() {
+    decreaseHealth();
+}
+
+// 게임 루프
+function gameLoop(timestamp) {
+    ctx.fillStyle = "#d3d3d3"; // 연한 회색 배경
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+    // 플레이어 및 방패 그리기
+    drawPlayerAndShield();
+
+    // 화살 생성 (주기적으로 생성)
+    if (timestamp - lastSpawnTime >= spawnInterval) {
+        createArrow();
+        lastSpawnTime = timestamp;
+    }
+
+    // 화살 업데이트 및 그리기
+    arrows.forEach((arrow, index) => {
+        arrow.distance -= arrow.speed;
+
+        // 방패와 화살의 충돌 판정
+        if (checkShieldCollision(arrow)) {
+            arrows.splice(index, 1);  // 충돌 후 화살 제거
+            score += 1;
+            document.getElementById("score").innerText = `Score: ${score}`;
+        }
+
+        // 플레이어와 화살의 충돌 판정
+        if (checkPlayerCollision(arrow)) {
+            arrows.splice(index, 1);  // 충돌 후 화살 제거
+            handleArrowHit(); // 체력 차감
+        }
+
+        // 화살이 화면 밖으로 나가면 삭제
+        if (arrow.distance <= 0) {
+            arrows.splice(index, 1); // 화면 밖으로 사라짐
+        } else {
+            drawArrow(arrow);
+        }
+    });
+
+    // 체력 바 그리기
+    drawHealthBar();
+
+    // 체력 체크
+    if (hp <= 0 || hitCount >= 3) {
+        gameOver();
+        return;
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+// 키보드 입력 처리
+document.addEventListener("keydown", (event) => {
+    const x = WIDTH / 2;
+    const y = HEIGHT / 2;
+
+    // 방패 방향 변경
+    if (event.key === "ArrowUp") {
+        shieldDirection = "UP";
+    } else if (event.key === "ArrowDown") {
+        shieldDirection = "DOWN";
+    } else if (event.key === "ArrowLeft") {
+        shieldDirection = "LEFT";
+    } else if (event.key === "ArrowRight") {
+        shieldDirection = "RIGHT";
+    }
+});
+
+// 게임 시작
+requestAnimationFrame(gameLoop);
+
+    </script>
+</body>
+</html>
