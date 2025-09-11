@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>게임 허브</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #121212;
+      color: white;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    h1 {
+      padding: 20px;
+    }
+    .game-container {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      flex-wrap: wrap;
+      padding: 40px;
+    }
+    .game-card {
+      background-color: #1e1e1e;
+      border-radius: 10px;
+      width: 200px;
+      padding: 20px;
+      transition: 0.3s;
+      cursor: pointer;
+    }
+    .game-card:hover {
+      background-color: #333;
+    }
+    .game-card img {
+      width: 100%;
+      border-radius: 8px;
+    }
+    a {
+      text-decoration: none;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎮 내 게임 허브</h1>
+  <div class="game-container">
+    <a href="game1.html">
+      <div class="game-card">
+        <img src="g1.png" alt="게임 1">
+        <h3>게임 1</h3>
+      </div>
+    </a>
+    <a href="game2.html">
+      <div class="game-card">
+        <img src="g2.png" alt="게임 2">
+        <h3>게임 2</h3>
+      </div>
+    </a>
+    <a href="game3.html">
+      <div class="game-card">
+        <img src="g3.png" alt="게임 3">
+        <h3>게임 3</h3>
+      </div>
+      <a href="game4.html">
+      <div class="game-card">
+        <img src="g4.png" alt="게임 4">
+        <h3>게임 3</h3>
+      </div>
+    </a>
+  </div>
+</body>
+</html>
