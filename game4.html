@@ -1,75 +1,252 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>게임 허브</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Canvas WASD + 적 AI + 총알 + 체력</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #121212;
-      color: white;
-      text-align: center;
-      margin: 0;
-      padding: 0;
-    }
-    h1 {
-      padding: 20px;
-    }
-    .game-container {
-      display: flex;
-      justify-content: center;
-      gap: 30px;
-      flex-wrap: wrap;
-      padding: 40px;
-    }
-    .game-card {
-      background-color: #1e1e1e;
-      border-radius: 10px;
-      width: 200px;
-      padding: 20px;
-      transition: 0.3s;
-      cursor: pointer;
-    }
-    .game-card:hover {
-      background-color: #333;
-    }
-    .game-card img {
-      width: 100%;
-      border-radius: 8px;
-    }
-    a {
-      text-decoration: none;
-      color: white;
-    }
+    body{margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#eef6fb;font-family:sans-serif}
+    canvas{border:1px solid #ccc;border-radius:8px;background:#fff}
   </style>
 </head>
 <body>
-  <h1>🎮 내 게임 허브</h1>
-  <div class="game-container">
-    <a href="game1.html">
-      <div class="game-card">
-        <img src="g1.png" alt="게임 1">
-        <h3>게임 1</h3>
-      </div>
-    </a>
-    <a href="game2.html">
-      <div class="game-card">
-        <img src="g2.png" alt="게임 2">
-        <h3>게임 2</h3>
-      </div>
-    </a>
-    <a href="game3.html">
-      <div class="game-card">
-        <img src="g3.png" alt="게임 3">
-        <h3>게임 3</h3>
-      </div>
-      <a href="game4.html">
-      <div class="game-card">
-        <img src="g4.png" alt="게임 4">
-        <h3>게임 3</h3>
-      </div>
-    </a>
-  </div>
+<canvas id="gameCanvas" width="960" height="540"></canvas>
+<script>
+(() => {
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const worldWidth = 2000;
+  const worldHeight = 1200;
+
+  // 플레이어
+  const player = { x: 320, y: 900, w: 28, h: 28, speed: 160, color: '#00aaff', vy: 0, onGround: false, lastDir: 1, hp: 100 };
+
+  const enemies = [];
+  const bullets = [];
+
+  const gravity = 612;
+  const jumpPower = -332;
+
+  // 바닥
+  const floors = [];
+  const floorHeight = 20;
+  const floorWidth = 300;
+  let toggle = 0;
+  for(let y = 13; y <= 900; y += 78){
+    for(let x = 30; x < worldWidth; x +=700){
+      floors.push({x: x + (toggle ? 350 : 0), y: y, w: floorWidth, h: floorHeight});
+    }
+    toggle = 1 - toggle;
+  }
+  floors.push({x:0, y: 950, w: worldWidth, h:500, isAbsolute:true});
+
+  const keys = {};
+  let mouseX = 0, mouseY = 0;
+  let gameOver = false;
+
+  window.addEventListener('keydown', (e) => {
+    keys[e.key] = true;
+
+    // 위 화살표로 점프
+    if ((e.key === 'ArrowUp') && player.onGround && !gameOver) {
+      player.vy = jumpPower;
+      player.onGround = false;
+    }
+
+    if (e.key === 'ArrowDown' && player.onGround && !gameOver) {
+      const floorBelow = floors.find(f => player.y + player.h/2 === f.y && f.isAbsolute);
+      if (!floorBelow) { player.y += 5; player.onGround = false; }
+    }
+
+    // 스페이스로 총알 발사 (점프 제거)
+    if (e.key === ' ' && !gameOver) shootBullet(player.lastDir, player.x, player.y);
+  });
+
+  window.addEventListener('keyup', (e) => { keys[e.key] = false; });
+
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    mouseX = e.clientX - rect.left;
+    mouseY = e.clientY - rect.top;
+  });
+
+  canvas.addEventListener('click', () => {
+    if (!gameOver) shootBullet(mouseX < canvas.width/2 ? -1 : 1, player.x, player.y);
+  });
+
+  function shootBullet(dir, startX, startY) {
+    bullets.push({ x: startX, y: startY, dx: dir, dy: 0, speed: 400, r: 5 });
+  }
+
+  function applyPhysics(obj, dt) {
+    obj.vy += gravity * dt;
+    obj.y += obj.vy * dt;
+    obj.onGround = false;
+
+    for (const f of floors) {
+      if (obj.vy > 0 && obj.x + obj.w/2 > f.x && obj.x - obj.w/2 < f.x + f.w) {
+        if (obj.y + obj.h/2 >= f.y && obj.y + obj.h/2 - obj.vy * dt <= f.y) {
+          obj.y = f.y - obj.h/2;
+          obj.vy = 0;
+          obj.onGround = true;
+        }
+      }
+    }
+
+    obj.x = Math.max(obj.w/2, Math.min(worldWidth - obj.w/2, obj.x));
+    obj.y = Math.min(obj.y, worldHeight - obj.h/2);
+  }
+
+  function spawnEnemy() {
+    const side = Math.floor(Math.random() * 3); 
+    let x, y;
+    if (side === 0) { x = -50; y = Math.random() * 600 + 100; }
+    else if (side === 1) { x = worldWidth + 50; y = Math.random() * 600 + 100; }
+    else { x = Math.random() * worldWidth; y = -50; }
+
+    enemies.push({ x, y, w: 28, h: 28, speed: 120, color: '#ff3333', vy: 0, onGround: false });
+  }
+  setInterval(spawnEnemy, 5000);
+
+  let lastTime = performance.now();
+
+  function update(dt) {
+    if (gameOver) return;
+
+    // 플레이어 이동
+    let vx = 0;
+    if (keys.a || keys.ArrowLeft) { vx -= 1; player.lastDir = -1; }
+    if (keys.d || keys.ArrowRight) { vx += 1; player.lastDir = 1; }
+    if (vx !== 0) vx = vx / Math.abs(vx);
+    const speedMultiplier = keys.Shift ? 1.8 : 1.0;
+    player.x += vx * player.speed * speedMultiplier * dt;
+    applyPhysics(player, dt);
+
+    // 적 이동
+    for (let i = enemies.length-1; i >= 0; i--) {
+      const e = enemies[i];
+      let dirX = player.x - e.x;
+      if (Math.abs(dirX) > 4) e.x += Math.sign(dirX) * e.speed * dt;
+
+      if (e.onGround && player.y + 10 < e.y) { e.vy = jumpPower; e.onGround = false; }
+      if (e.onGround && player.y - 10 > e.y) {
+        const floorBelow = floors.find(f => e.y + e.h/2 === f.y && f.isAbsolute);
+        if (!floorBelow) { e.y += 5; e.onGround = false; }
+      }
+      applyPhysics(e, dt);
+
+      // 적과 플레이어 충돌 시 적 제거
+      if (Math.abs(player.x - e.x) < (player.w+e.w)/2 && Math.abs(player.y - e.y) < (player.h+e.h)/2) {
+        enemies.splice(i,1);
+        player.hp -= 10;
+        if (player.hp <= 0) {
+          player.hp = 0;
+          gameOver = true;
+        }
+      }
+    }
+
+    // 총알 이동
+    for (let i = bullets.length-1; i >= 0; i--) {
+      const b = bullets[i];
+      b.x += b.dx * b.speed * dt;
+      b.y += b.dy * b.speed * dt;
+
+      if (b.x < 0 || b.x > worldWidth || b.y < 0 || b.y > worldHeight) { bullets.splice(i, 1); continue; }
+
+      for (let j = enemies.length-1; j >= 0; j--) {
+        const e = enemies[j];
+        if (b.x > e.x - e.w/2 && b.x < e.x + e.w/2 && b.y > e.y - e.h/2 && b.y < e.y + e.h/2) {
+          enemies.splice(j, 1);
+          bullets.splice(i, 1);
+          break;
+        }
+      }
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    let cameraX = player.x - canvas.width/2;
+    let cameraY = player.y - canvas.height/2;
+    cameraX = Math.max(0, Math.min(cameraX, worldWidth - canvas.width));
+    cameraY = Math.max(0, Math.min(cameraY, worldHeight - canvas.height - 200));
+
+    ctx.save();
+    ctx.translate(-cameraX, -cameraY);
+
+    const gridSize = 32;
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.strokeStyle = '#000';
+    for (let x = 0; x < worldWidth; x += gridSize) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,worldHeight); ctx.stroke(); }
+    for (let y = 0; y < worldHeight; y += gridSize) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(worldWidth,y); ctx.stroke(); }
+    ctx.restore();
+
+    // 바닥
+    ctx.fillStyle = '#444';
+    for (const f of floors) ctx.fillRect(f.x, f.y, f.w, f.h);
+
+    // 플레이어
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x - player.w/2, player.y - player.h/2, player.w, player.h);
+    ctx.fillStyle = 'white';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('P', player.x, player.y+4);
+
+    // 적들
+    for (const e of enemies) {
+      ctx.fillStyle = e.color;
+      ctx.fillRect(e.x - e.w/2, e.y - e.h/2, e.w, e.h);
+      ctx.fillStyle = 'white';
+      ctx.fillText('E', e.x, e.y+4);
+    }
+
+    // 총알
+    ctx.fillStyle = 'green';
+    for (const b of bullets) {
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+
+    // 체력바 아래쪽
+    ctx.fillStyle = 'gray';
+    ctx.fillRect(10, canvas.height - 30, 200, 20);
+    ctx.fillStyle = 'lime';
+    ctx.fillRect(10, canvas.height - 30, 2*player.hp, 20);
+    ctx.strokeStyle = '#000';
+    ctx.strokeRect(10, canvas.height - 30, 200, 20);
+
+    // 게임오버
+    if (gameOver) {
+      ctx.fillStyle = 'red';
+      ctx.font = '40px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2);
+    }
+
+    // 좌표 표시
+    ctx.fillStyle = '#222';
+    ctx.font = '13px monospace';
+    ctx.fillText(`x:${Math.round(player.x)} y:${Math.round(player.y)} vy:${Math.round(player.vy)} bullets:${bullets.length}`, 8, canvas.height - 8);
+  }
+
+  function loop(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  requestAnimationFrame(loop);
+})();
+</script>
 </body>
 </html>
