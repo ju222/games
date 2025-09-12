@@ -129,7 +129,7 @@
       let dirX = player.x - e.x;
       if (Math.abs(dirX) > 4) e.x += Math.sign(dirX) * e.speed * dt;
 
-      if (e.onGround && player.y + 10 < e.y) { e.vy = -600; e.onGround = false; }
+      if (e.onGround && player.y + 10 < e.y) { e.vy = -400; e.onGround = false; }
       if (e.onGround && player.y - 10 > e.y) {
         const floorBelow = floors.find(f => e.y + e.h/2 === f.y && f.isAbsolute);
         if (!floorBelow) { e.y += 5; e.onGround = false; }
