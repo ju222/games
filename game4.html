@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Canvas WASD + 적 AI + 총알 + 체력</title>
+  <title>와랄랄라</title>
   <style>
     body{margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#eef6fb;font-family:sans-serif}
     canvas{border:1px solid #ccc;border-radius:8px;background:#fff}
   </style>
 </head>
 <body>
-<canvas id="gameCanvas" width="960" height="540"></canvas>
+<canvas id="gameCanvas" width="900" height="540"></canvas>
 <script>
 (() => {
   const canvas = document.getElementById('gameCanvas');
@@ -19,21 +19,32 @@
   const worldWidth = 2000;
   const worldHeight = 1200;
 
-  // 플레이어
-  const player = { x: 320, y: 900, w: 28, h: 28, speed: 160, color: '#00aaff', vy: 0, onGround: false, lastDir: 1, hp: 100 };
+  const player = { 
+    x: 320, y: 900, w: 28, h: 28, 
+    speed: 160, color: '#00aaff', 
+    vy: 0, onGround: false, lastDir: 1, 
+    hitCount: 0,
+    score: 0, 
+    exp: 0, 
+    level: 1,
+    displayedHealth: 1,
+    displayedExp: 0,
+    shootCooldown: 0,
+    shooting: false
+  };
 
   const enemies = [];
   const bullets = [];
+  const explosions = [];
 
   const gravity = 612;
   const jumpPower = -332;
 
-  // 바닥
   const floors = [];
   const floorHeight = 20;
   const floorWidth = 300;
   let toggle = 0;
-  for(let y = 13; y <= 900; y += 78){
+  for(let y = 13; y <= 900; y +=78){
     for(let x = 30; x < worldWidth; x +=700){
       floors.push({x: x + (toggle ? 350 : 0), y: y, w: floorWidth, h: floorHeight});
     }
@@ -42,48 +53,41 @@
   floors.push({x:0, y: 950, w: worldWidth, h:500, isAbsolute:true});
 
   const keys = {};
-  let mouseX = 0, mouseY = 0;
   let gameOver = false;
 
   window.addEventListener('keydown', (e) => {
     keys[e.key] = true;
-
-    // 위 화살표로 점프
     if ((e.key === 'ArrowUp') && player.onGround && !gameOver) {
       player.vy = jumpPower;
       player.onGround = false;
     }
-
     if (e.key === 'ArrowDown' && player.onGround && !gameOver) {
       const floorBelow = floors.find(f => player.y + player.h/2 === f.y && f.isAbsolute);
       if (!floorBelow) { player.y += 5; player.onGround = false; }
     }
-
-    // 스페이스로 총알 발사 (점프 제거)
-    if (e.key === ' ' && !gameOver) shootBullet(player.lastDir, player.x, player.y);
+    if (e.key === ' ') player.shooting = true;
   });
 
-  window.addEventListener('keyup', (e) => { keys[e.key] = false; });
-
-  canvas.addEventListener('mousemove', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    mouseX = e.clientX - rect.left;
-    mouseY = e.clientY - rect.top;
+  window.addEventListener('keyup', (e) => {
+    keys[e.key] = false;
+    if (e.key === ' ') player.shooting = false;
   });
 
-  canvas.addEventListener('click', () => {
-    if (!gameOver) shootBullet(mouseX < canvas.width/2 ? -1 : 1, player.x, player.y);
-  });
-
-  function shootBullet(dir, startX, startY) {
-    bullets.push({ x: startX, y: startY, dx: dir, dy: 0, speed: 400, r: 5 });
+  function shootBullet(dir, startX, startY, vertical=false) {
+    bullets.push({ 
+      x: startX, y: startY, 
+      dx: vertical ? 0 : dir, 
+      dy: vertical ? -1 : 0, 
+      speed: vertical ? 600 : 1000, 
+      w: vertical ? 6 : 16, 
+      h: vertical ? 16 : 6
+    });
   }
 
   function applyPhysics(obj, dt) {
     obj.vy += gravity * dt;
     obj.y += obj.vy * dt;
     obj.onGround = false;
-
     for (const f of floors) {
       if (obj.vy > 0 && obj.x + obj.w/2 > f.x && obj.x - obj.w/2 < f.x + f.w) {
         if (obj.y + obj.h/2 >= f.y && obj.y + obj.h/2 - obj.vy * dt <= f.y) {
@@ -93,7 +97,6 @@
         }
       }
     }
-
     obj.x = Math.max(obj.w/2, Math.min(worldWidth - obj.w/2, obj.x));
     obj.y = Math.min(obj.y, worldHeight - obj.h/2);
   }
@@ -104,17 +107,15 @@
     if (side === 0) { x = -50; y = Math.random() * 600 + 100; }
     else if (side === 1) { x = worldWidth + 50; y = Math.random() * 600 + 100; }
     else { x = Math.random() * worldWidth; y = -50; }
-
     enemies.push({ x, y, w: 28, h: 28, speed: 120, color: '#ff3333', vy: 0, onGround: false });
   }
-  setInterval(spawnEnemy, 500);
+  setInterval(spawnEnemy, 200);
 
   let lastTime = performance.now();
 
   function update(dt) {
     if (gameOver) return;
 
-    // 플레이어 이동
     let vx = 0;
     if (keys.a || keys.ArrowLeft) { vx -= 1; player.lastDir = -1; }
     if (keys.d || keys.ArrowRight) { vx += 1; player.lastDir = 1; }
@@ -123,47 +124,98 @@
     player.x += vx * player.speed * speedMultiplier * dt;
     applyPhysics(player, dt);
 
+    // 총알 발사
+    player.shootCooldown -= dt;
+    if (player.shooting && player.shootCooldown <= 0) {
+      if(!player.onGround){
+        shootBullet(0, player.x, player.y, true);
+      } else {
+        shootBullet(player.lastDir, player.x, player.y);
+      }
+      player.shootCooldown = 0.25;
+    }
+
     // 적 이동
     for (let i = enemies.length-1; i >= 0; i--) {
       const e = enemies[i];
       let dirX = player.x - e.x;
       if (Math.abs(dirX) > 4) e.x += Math.sign(dirX) * e.speed * dt;
 
-      if (e.onGround && player.y + 10 < e.y) { e.vy = -400; e.onGround = false; }
+      if (e.onGround && player.y + 10 < e.y) { e.vy = -450; e.onGround = false; }
       if (e.onGround && player.y - 10 > e.y) {
         const floorBelow = floors.find(f => e.y + e.h/2 === f.y && f.isAbsolute);
         if (!floorBelow) { e.y += 5; e.onGround = false; }
       }
       applyPhysics(e, dt);
 
-      // 적과 플레이어 충돌 시 적 제거
       if (Math.abs(player.x - e.x) < (player.w+e.w)/2 && Math.abs(player.y - e.y) < (player.h+e.h)/2) {
         enemies.splice(i,1);
-        player.hp -= 10;
-        if (player.hp <= 0) {
-          player.hp = 0;
-          gameOver = true;
-        }
+        player.hitCount++;
+        if (player.hitCount >= 4) gameOver = true;
       }
     }
 
-    // 총알 이동
+    // 총알 이동 & 폭발 생성
     for (let i = bullets.length-1; i >= 0; i--) {
       const b = bullets[i];
       b.x += b.dx * b.speed * dt;
       b.y += b.dy * b.speed * dt;
 
-      if (b.x < 0 || b.x > worldWidth || b.y < 0 || b.y > worldHeight) { bullets.splice(i, 1); continue; }
+      if (b.x < 0 || b.x > worldWidth || b.y < 0 || b.y > worldHeight) {
+        explosions.push({x:b.x, y:b.y, r:0, maxR:60, alpha:0.6});
+        bullets.splice(i, 1); 
+        continue;
+      }
 
+      let hit = false;
       for (let j = enemies.length-1; j >= 0; j--) {
         const e = enemies[j];
         if (b.x > e.x - e.w/2 && b.x < e.x + e.w/2 && b.y > e.y - e.h/2 && b.y < e.y + e.h/2) {
           enemies.splice(j, 1);
           bullets.splice(i, 1);
+          hit = true;
+
+          explosions.push({x:b.x, y:b.y, r:0, maxR:60, alpha:0.6});
+          player.score += 10;
+          player.exp += 10;
+          const expNeeded = player.level * 100;
+          if (player.exp >= expNeeded) { player.exp -= expNeeded; player.level++; }
           break;
         }
       }
+      if(hit) continue;
     }
+
+    // 폭발 업데이트 & 적 피해 처리
+    for(let i=explosions.length-1; i>=0; i--){
+      const ex = explosions[i];
+      ex.r += 180 * dt;
+      ex.alpha -= dt * 1.5;
+
+      // 폭발 범위 내 적 제거
+      for(let j=enemies.length-1; j>=0; j--){
+        const e = enemies[j];
+        const dx = e.x - ex.x;
+        const dy = e.y - ex.y;
+        if(Math.sqrt(dx*dx + dy*dy) <= ex.r){
+          enemies.splice(j,1);
+          player.score += 10;
+          player.exp += 10;
+          const expNeeded = player.level * 100;
+          if (player.exp >= expNeeded) { player.exp -= expNeeded; player.level++; }
+        }
+      }
+
+      if(ex.alpha <= 0) explosions.splice(i,1);
+    }
+
+    // 체력 자동 회복
+    const recoveryRate = 0.1;
+    player.hitCount -= recoveryRate * dt;
+    if (player.hitCount < 0) player.hitCount = 0;
+
+    player.displayedHealth += ((1 - player.hitCount/4) - player.displayedHealth) * dt * 6;
+    player.displayedExp += ((player.exp / (player.level*100)) - player.displayedExp) * dt * 6;
   }
 
   function draw() {
@@ -177,6 +229,7 @@
     ctx.save();
     ctx.translate(-cameraX, -cameraY);
 
+    // 그리드
     const gridSize = 32;
     ctx.save();
     ctx.globalAlpha = 0.08;
@@ -208,33 +261,54 @@
     // 총알
     ctx.fillStyle = 'green';
     for (const b of bullets) {
+      ctx.fillRect(b.x - b.w/2, b.y - b.h/2, b.w, b.h);
+    }
+
+    // 폭발
+    for (const ex of explosions) {
       ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+      ctx.arc(ex.x, ex.y, ex.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(255,165,0,${ex.alpha})`;
       ctx.fill();
     }
 
     ctx.restore();
 
-    // 체력바 아래쪽
+    // 체력바
+    const barWidth = 400;
     ctx.fillStyle = 'gray';
-    ctx.fillRect(10, canvas.height - 30, 200, 20);
-    ctx.fillStyle = 'lime';
-    ctx.fillRect(10, canvas.height - 30, 2*player.hp, 20);
+    ctx.fillRect(10, canvas.height - 60, barWidth, 20);
+    ctx.fillStyle = 'red';
+    ctx.fillRect(10, canvas.height - 60, barWidth * player.displayedHealth, 20);
     ctx.strokeStyle = '#000';
-    ctx.strokeRect(10, canvas.height - 30, 200, 20);
+    ctx.strokeRect(10, canvas.height - 60, barWidth, 20);
 
-    // 게임오버
+    // 경험치바
+    const expBarWidth = 400;
+    const expBarHeight = 15;
+    ctx.fillStyle = 'gray';
+    ctx.fillRect(10, 30, expBarWidth, expBarHeight);
+    ctx.fillStyle = 'blue';
+    ctx.fillRect(10, 30, expBarWidth * player.displayedExp, expBarHeight);
+    ctx.strokeStyle = '#000';
+    ctx.strokeRect(10, 30, expBarWidth, expBarHeight);
+
+    // 레벨 & 스코어
+    ctx.fillStyle = '#222';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`레벨: ${player.level}   점수: ${player.score}`, 10, 20);
+
+    // 디버깅 정보
+    ctx.font = '13px monospace';
+    ctx.fillText(`x:${Math.round(player.x)} y:${Math.round(player.y)} vy:${Math.round(player.vy)}`, 10, canvas.height - 50);
+
     if (gameOver) {
       ctx.fillStyle = 'red';
       ctx.font = '40px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2);
     }
-
-    // 좌표 표시
-    ctx.fillStyle = '#222';
-    ctx.font = '13px monospace';
-    ctx.fillText(`x:${Math.round(player.x)} y:${Math.round(player.y)} vy:${Math.round(player.vy)} bullets:${bullets.length}`, 8, canvas.height - 8);
   }
 
   function loop(now) {
