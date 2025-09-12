@@ -189,7 +189,7 @@
     // 폭발 업데이트 & 적 피해 처리
     for(let i=explosions.length-1; i>=0; i--){
       const ex = explosions[i];
-      ex.r += 180 * dt;
+      ex.r += 80 * dt;
       ex.alpha -= dt * 1.5;
 
       // 폭발 범위 내 적 제거
